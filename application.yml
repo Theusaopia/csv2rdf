@@ -1,5 +1,4 @@
 config:
-  csvFilesFolder: "csvExample"
   csvEncode: "UTF-8"
   csvSeparator: ","
   rdfFormat: "NTRIPLE"

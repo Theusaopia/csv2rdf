@@ -5,6 +5,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -48,16 +49,13 @@ import com.google.gson.JsonParser;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.stereotype.Service;
 
-
 @Service
 public class CsvReader {
 	final Logger logger = LoggerFactory.getLogger(Main.class);
 
-	//TODO: Analisar futuramente como esse link vai impactar na hora de subir o server na AWS
+	// TODO: Analisar futuramente como esse link vai impactar na hora de subir o
+	// server na AWS
 	private String resourceDomain = "http://example.com";
-
-	@Value("${config.csvFilesFolder}")
-	private String csvFilesFolder;
 
 	@Value("${config.csvEncode}")
 	private String csvEncode = "UTF-8";
@@ -67,7 +65,7 @@ public class CsvReader {
 
 	@Value("${config.rdfFormat}")
 	private String rdfFormat = Lang.NTRIPLES.getName();
-	
+
 	@Value("${config.csvEncode}")
 	private String rdfEncode = "UTF-8";
 
@@ -80,73 +78,69 @@ public class CsvReader {
 	private int inMemoryModelSize = 1000;
 	private int totalProcessedRecords = 0;
 	private String currentFileId = UUID.randomUUID().toString();
-	private String mappingFile = "mapping.jsonld";
-	private String ontologyFile = "ontology.owl";
+	private File mappingFile;
+	private Path ontologyFile;
 	private List<CsvReaderListener> listeners = new ArrayList<>();
 
-
-	public InputStreamResource process() throws IOException {
+	public InputStreamResource process(File file, File mappingFileRequest, Path ontologyFile) throws IOException {
+		this.setMappingFile(mappingFileRequest);
+		this.setOntologyFile(ontologyFile);
 		this.tempModel = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
 		this.resourceDomain = this.readResourceDomain();
 
 		OntModel ontologyModel = createOntologyModel();
 		this.createMapInverseProperties(ontologyModel);
 
-        {
-            String csvFilesFolder = this.csvFilesFolder;
-            Collection<File> files = FileUtils.listFiles(new File(csvFilesFolder), null, true);
-            for (File file : files) {
-                logger.info("reading " + file.getName());
+		logger.info("reading " + file.getName());
 
-                Reader in = new InputStreamReader(new FileInputStream(file.getPath()), this.csvEncode);
+		Reader in = new InputStreamReader(new FileInputStream(file.getPath()), this.csvEncode);
 
-                Iterable<CSVRecord> records = null;
+		Iterable<CSVRecord> records = null;
 
-                if (csvSeparator.equalsIgnoreCase("COMMA")) {
-                    records = CSVFormat.DEFAULT.withFirstRecordAsHeader().withAllowMissingColumnNames().parse(in);
-                } else if (csvSeparator.equalsIgnoreCase("TAB")) {
-                    records = CSVFormat.TDF.withFirstRecordAsHeader().parse(in);
-                } else {
-                    records = CSVFormat.DEFAULT.withFirstRecordAsHeader().withAllowMissingColumnNames().withDelimiter(csvSeparator.toCharArray()[0]).parse(in);
-                }
+		if (csvSeparator.equalsIgnoreCase("COMMA")) {
+			records = CSVFormat.DEFAULT.withFirstRecordAsHeader().withAllowMissingColumnNames().parse(in);
+		} else if (csvSeparator.equalsIgnoreCase("TAB")) {
+			records = CSVFormat.TDF.withFirstRecordAsHeader().parse(in);
+		} else {
+			records = CSVFormat.DEFAULT.withFirstRecordAsHeader().withAllowMissingColumnNames()
+					.withDelimiter(csvSeparator.toCharArray()[0]).parse(in);
+		}
 
-                for (CSVRecord record : records) {
-                    JsonObject mappingContext = createContextMapping();
-                    Individual resource;
-                    resource = createResourceModel(mappingContext, record);
-                    if (resource == null) {
-                        continue;
-                    }
+		for (CSVRecord record : records) {
+			JsonObject mappingContext = createContextMapping();
+			Individual resource;
+			resource = createResourceModel(mappingContext, record);
+			if (resource == null) {
+				continue;
+			}
 
-                    removeTBox(resource);
+			removeTBox(resource);
 
-                    this.tempModel.add(resource.getModel());
-                    this.individualsAddedToTempModel++;
-                    this.totalProcessedRecords++;
+			this.tempModel.add(resource.getModel());
+			this.individualsAddedToTempModel++;
+			this.totalProcessedRecords++;
 
-                    for (CsvReaderListener listener : this.listeners) {
-                        listener.justRead(resource.getModel());
-                    }
-                }
-            }
+			for (CsvReaderListener listener : this.listeners) {
+				listener.justRead(resource.getModel());
+			}
+		}
 
-            // converte o model para string
-            String syntax = "NTRIPLE"; // also try "N-TRIPLE" and "TURTLE"
-            StringWriter out = new StringWriter();
-            this.tempModel.write(out, syntax);
-            String result = out.toString();
+		// converte o model para string
+		String syntax = "NTRIPLE"; // also try "N-TRIPLE" and "TURTLE"
+		StringWriter out = new StringWriter();
+		this.tempModel.write(out, syntax);
+		String result = out.toString();
 
-            byte[] bytes = result.getBytes();
-            InputStream inputStream = new ByteArrayInputStream(bytes);
-            InputStreamResource inputStreamResource = new InputStreamResource(inputStream);
+		byte[] bytes = result.getBytes();
+		InputStream inputStream = new ByteArrayInputStream(bytes);
+		InputStreamResource inputStreamResource = new InputStreamResource(inputStream);
 
-            for (CsvReaderListener listener : this.listeners) {
-                listener.readProcessFinished();
-            }
-            logger.info("Process finished. Record(s) processed: " + totalProcessedRecords);
+		for (CsvReaderListener listener : this.listeners) {
+			listener.readProcessFinished();
+		}
+		logger.info("Process finished. Record(s) processed: " + totalProcessedRecords);
 
-            return inputStreamResource;
-        }
+		return inputStreamResource;
 	}
 
 	private void removeTBox(Individual resource) {
@@ -162,7 +156,7 @@ public class CsvReader {
 	}
 
 	private JsonObject createContextMapping() {
-		try (FileInputStream inputStream = FileUtils.openInputStream(new File(this.mappingFile))) {
+		try (FileInputStream inputStream = FileUtils.openInputStream(this.mappingFile)) {
 			String mappingContextString = IOUtils.toString(inputStream, StandardCharsets.UTF_8.name());
 			JsonObject mappingJsonObject = JsonParser.parseString(mappingContextString).getAsJsonObject();
 			return mappingJsonObject.get("@context").getAsJsonObject();
@@ -257,7 +251,7 @@ public class CsvReader {
 		String ontologyString = null;
 		OntModel model = ModelFactory.createOntologyModel(OntModelSpec.OWL_LITE_MEM_RULES_INF);
 		try {
-			ontologyString = new String(Files.readAllBytes(Paths.get(ontologyFile)));
+			ontologyString = new String(Files.readAllBytes(this.ontologyFile));
 		} catch (IOException e) {
 			return model;
 		}
@@ -311,7 +305,7 @@ public class CsvReader {
 		try {
 			MessageDigest msdDigest = MessageDigest.getInstance("SHA-256");
 			msdDigest.update(input.getBytes("UTF-8"), 0, input.length());
-			sha2 =  Hex.encodeHexString(msdDigest.digest());
+			sha2 = Hex.encodeHexString(msdDigest.digest());
 		} catch (UnsupportedEncodingException | NoSuchAlgorithmException e) {
 			System.out.println("SHA-256 error");
 		}
@@ -319,7 +313,7 @@ public class CsvReader {
 	}
 
 	private String readResourceDomain() {
-		try (FileInputStream inputStream = FileUtils.openInputStream(new File(this.mappingFile))) {
+		try (FileInputStream inputStream = FileUtils.openInputStream(this.mappingFile)) {
 			String mappingString = IOUtils.toString(inputStream, StandardCharsets.UTF_8.name());
 			JsonObject mappingJsonObject = JsonParser.parseString(mappingString).getAsJsonObject();
 			String managedUri = mappingJsonObject.get("@resourceDomain").getAsString();
@@ -346,15 +340,11 @@ public class CsvReader {
 		this.csvSeparator = csvSeparator;
 	}
 
-	public void setMappingFile(String mappingFile) {
+	public void setMappingFile(File mappingFile) {
 		this.mappingFile = mappingFile;
 	}
 
-	public void setCsvFilesFolder(String csvFilesFolder) {
-		this.csvFilesFolder = csvFilesFolder;
-	}
-
-	public void setOntologyFile(String ontologyFile) {
+	public void setOntologyFile(Path ontologyFile) {
 		this.ontologyFile = ontologyFile;
 	}
 
