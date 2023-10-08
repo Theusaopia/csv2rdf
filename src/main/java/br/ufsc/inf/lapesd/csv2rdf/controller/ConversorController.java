@@ -26,7 +26,12 @@ public class ConversorController {
         @PostMapping("/converte")
         public ResponseEntity<Resource> converteCsv(@RequestParam("csv-file") MultipartFile csvFile,
                         @RequestParam("mapping-file") MultipartFile mappingFile,
-                        @RequestParam("ontology-file") MultipartFile ontologyFile) throws IOException {
+                        @RequestParam("ontology-file") MultipartFile ontologyFile,
+                        @RequestParam("csvEncode") String csvEncode,
+                        @RequestParam("csvSeparator") String csvSeparator,
+                        @RequestParam("rdfFormat") String rdfFormat,
+                        @RequestParam("rdfEncode") String rdfEncode,
+                        @RequestParam("ontologyFormat") String ontologyFormat) throws IOException {
 
                 if (csvFile.isEmpty()) {
                         throw new IOException("Arquivo Inexistente");
@@ -41,7 +46,14 @@ public class ConversorController {
                 Path tempFileOntology = Files.createTempFile("temp", ".owl");
                 Files.copy(ontologyFile.getInputStream(), tempFileOntology, StandardCopyOption.REPLACE_EXISTING);
 
-                InputStreamResource input = csvReader.process(tempFileCsv, tempFileMapping, tempFileOntology);
+                InputStreamResource input = csvReader.process(tempFileCsv,
+                                tempFileMapping,
+                                tempFileOntology,
+                                csvEncode,
+                                csvSeparator, // COMMA ou TAB ou qualquer outra coisa
+                                rdfFormat,
+                                rdfEncode,
+                                ontologyFormat);
 
                 return ResponseEntity.ok()
                                 .contentType(MediaType.APPLICATION_OCTET_STREAM)

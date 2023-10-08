@@ -1,6 +1,0 @@
-config:
-  csvEncode: "UTF-8"
-  csvSeparator: ","
-  rdfFormat: "NTRIPLE"
-  rdfEncode: "UTF-8"
-  ontologyFormat: "N3"

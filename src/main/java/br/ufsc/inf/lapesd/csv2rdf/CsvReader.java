@@ -6,11 +6,9 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -40,7 +38,6 @@ import org.apache.jena.riot.Lang;
 import org.apache.jena.util.iterator.ExtendedIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -57,20 +54,15 @@ public class CsvReader {
 	// server na AWS
 	private String resourceDomain = "http://example.com";
 
-	@Value("${config.csvEncode}")
-	private String csvEncode = "UTF-8";
+	private String csvEncode;
 
-	@Value("${config.csvSeparator}")
-	private String csvSeparator = "COMMA";
+	private String csvSeparator;
 
-	@Value("${config.rdfFormat}")
-	private String rdfFormat = Lang.NTRIPLES.getName();
+	private String rdfFormat;
 
-	@Value("${config.csvEncode}")
-	private String rdfEncode = "UTF-8";
+	private String rdfEncode;
 
-	@Value("${config.ontologyFormat}")
-	String ontologyFormat = "N3";
+	private String ontologyFormat;
 
 	private Map<String, OntProperty> mapInverseProperties = new HashMap<>();
 	private Model tempModel;
@@ -82,9 +74,23 @@ public class CsvReader {
 	private Path ontologyFile;
 	private List<CsvReaderListener> listeners = new ArrayList<>();
 
-	public InputStreamResource process(File file, File mappingFileRequest, Path ontologyFile) throws IOException {
+	public InputStreamResource process(File file,
+			File mappingFileRequest,
+			Path ontologyFile,
+			String csvEncode,
+			String csvSeparator,
+			String rdfFormat,
+			String rdfEncode,
+			String ontologyFormat) throws IOException {
+
 		this.setMappingFile(mappingFileRequest);
 		this.setOntologyFile(ontologyFile);
+		this.setCsvEncode(csvEncode);
+		this.setCsvSeparator(csvSeparator);
+		this.setRdfFormat(rdfFormat);
+		this.setRdfEncode(rdfEncode);
+		this.setOntologyFormat(ontologyFormat);
+
 		this.tempModel = ModelFactory.createOntologyModel(OntModelSpec.OWL_DL_MEM);
 		this.resourceDomain = this.readResourceDomain();
 
@@ -126,7 +132,7 @@ public class CsvReader {
 		}
 
 		// converte o model para string
-		String syntax = "NTRIPLE"; // also try "N-TRIPLE" and "TURTLE"
+		String syntax = this.rdfFormat; // also try "N-TRIPLE" and "TURTLE"
 		StringWriter out = new StringWriter();
 		this.tempModel.write(out, syntax);
 		String result = out.toString();
@@ -256,7 +262,7 @@ public class CsvReader {
 			return model;
 		}
 
-		model.read(new StringReader(ontologyString), null, ontologyFormat);
+		model.read(new StringReader(ontologyString), null, this.ontologyFormat);
 		return model;
 	}
 
@@ -354,5 +360,9 @@ public class CsvReader {
 
 	public void setRdfEncode(String rdfEncode) {
 		this.rdfEncode = rdfEncode;
+	}
+
+	public void setOntologyFormat(String ontologyFormat) {
+		this.ontologyFormat = ontologyFormat;
 	}
 }
