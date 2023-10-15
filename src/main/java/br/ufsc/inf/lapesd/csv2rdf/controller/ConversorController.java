@@ -31,7 +31,8 @@ public class ConversorController {
                         @RequestParam("csvSeparator") String csvSeparator,
                         @RequestParam("rdfFormat") String rdfFormat,
                         @RequestParam("rdfEncode") String rdfEncode,
-                        @RequestParam("ontologyFormat") String ontologyFormat) throws IOException {
+                        @RequestParam("ontologyFormat") String ontologyFormat)
+                        throws IOException, InterruptedException {
 
                 if (csvFile.isEmpty()) {
                         throw new IOException("Arquivo Inexistente");

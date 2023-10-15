@@ -81,7 +81,7 @@ public class CsvReader {
 			String csvSeparator,
 			String rdfFormat,
 			String rdfEncode,
-			String ontologyFormat) throws IOException {
+			String ontologyFormat) throws IOException, InterruptedException {
 
 		this.setMappingFile(mappingFileRequest);
 		this.setOntologyFile(ontologyFile);
@@ -145,6 +145,8 @@ public class CsvReader {
 			listener.readProcessFinished();
 		}
 		logger.info("Process finished. Record(s) processed: " + totalProcessedRecords);
+
+		Thread.sleep(15000);
 
 		return inputStreamResource;
 	}
